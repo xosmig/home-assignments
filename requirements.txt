@@ -1,0 +1,7 @@
+click
+imageio
+moviepy
+numpy
+opencv-python
+pims
+scipy
