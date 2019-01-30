@@ -232,7 +232,7 @@ def create_cli(build):
             dump(corner_storage, file_to_dump)
         if show:
             click.echo(
-                "Press 'q' to stop, 'd' to go forward, 'a' to go backward"
+                "Press 'q' to stop, 'd' to go forward, 'a' to go backward, 'r' to restart the video"
             )
             frame = 0
             while True:
@@ -244,6 +244,8 @@ def create_cli(build):
                     frame -= 1
                 if key == 'd' and frame + 1 < len(corner_storage):
                     frame += 1
+                if key == 'r':
+                    frame = 0
                 if key == 'q':
                     break
 
