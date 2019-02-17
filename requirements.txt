@@ -10,3 +10,4 @@ recordclass
 scipy
 transforms3d
 voluptuous
+pyyaml
