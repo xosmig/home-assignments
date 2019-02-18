@@ -190,128 +190,9 @@ def _create_gl_texture(pixels: np.ndarray) -> GL.GLuint:
                         GL.GL_RGB8,  # internal format
                         pixels.shape[1], pixels.shape[0], 0,  # width, height, border
                         GL.GL_RGB, GL.GL_UNSIGNED_BYTE,  # external format, type
-                        pixels,  # pixels
-        )
+                        pixels)
 
         return id
-
-
-def _create_cube_vertices() -> np.ndarray:
-    return np.array([
-        [-1.0,-1.0,-1.0],
-        [-1.0,-1.0, 1.0],
-        [-1.0, 1.0, 1.0],
-        [1.0, 1.0,-1.0],
-        [-1.0,-1.0,-1.0],
-        [-1.0, 1.0,-1.0],
-        [1.0,-1.0, 1.0],
-        [-1.0,-1.0,-1.0],
-        [1.0,-1.0,-1.0],
-        [1.0, 1.0,-1.0],
-        [1.0,-1.0,-1.0],
-        [-1.0,-1.0,-1.0],
-        [-1.0,-1.0,-1.0],
-        [-1.0, 1.0, 1.0],
-        [-1.0, 1.0,-1.0],
-        [1.0,-1.0, 1.0],
-        [-1.0,-1.0, 1.0],
-        [-1.0,-1.0,-1.0],
-        [-1.0, 1.0, 1.0],
-        [-1.0,-1.0, 1.0],
-        [1.0,-1.0, 1.0],
-        [1.0, 1.0, 1.0],
-        [1.0,-1.0,-1.0],
-        [1.0, 1.0,-1.0],
-        [1.0,-1.0,-1.0],
-        [1.0, 1.0, 1.0],
-        [1.0,-1.0, 1.0],
-        [1.0, 1.0, 1.0],
-        [1.0, 1.0,-1.0],
-        [-1.0, 1.0,-1.0],
-        [1.0, 1.0, 1.0],
-        [-1.0, 1.0,-1.0],
-        [-1.0, 1.0, 1.0],
-        [1.0, 1.0, 1.0],
-        [-1.0, 1.0, 1.0],
-        [1.0,-1.0, 1.0],
-    ], dtype=np.float32)
-
-
-def _create_cube_uvs() -> np.ndarray:
-    return np.array([
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        # [1.0, 0.0],
-        [0.000059, 1.0-0.000004],
-        [0.000103, 1.0-0.336048],
-        [0.335973, 1.0-0.335903],
-        [1.000023, 1.0-0.000013],
-        [0.667979, 1.0-0.335851],
-        [0.999958, 1.0-0.336064],
-        [0.667979, 1.0-0.335851],
-        [0.336024, 1.0-0.671877],
-        [0.667969, 1.0-0.671889],
-        [1.000023, 1.0-0.000013],
-        [0.668104, 1.0-0.000013],
-        [0.667979, 1.0-0.335851],
-        [0.000059, 1.0-0.000004],
-        [0.335973, 1.0-0.335903],
-        [0.336098, 1.0-0.000071],
-        [0.667979, 1.0-0.335851],
-        [0.335973, 1.0-0.335903],
-        [0.336024, 1.0-0.671877],
-        [1.000004, 1.0-0.671847],
-        [0.999958, 1.0-0.336064],
-        [0.667979, 1.0-0.335851],
-        [0.668104, 1.0-0.000013],
-        [0.335973, 1.0-0.335903],
-        [0.667979, 1.0-0.335851],
-        [0.335973, 1.0-0.335903],
-        [0.668104, 1.0-0.000013],
-        [0.336098, 1.0-0.000071],
-        [0.000103, 1.0-0.336048],
-        [0.000004, 1.0-0.671870],
-        [0.336024, 1.0-0.671877],
-        [0.000103, 1.0-0.336048],
-        [0.336024, 1.0-0.671877],
-        [0.335973, 1.0-0.335903],
-        [0.667969, 1.0-0.671889],
-        [1.000004, 1.0-0.671847],
-        [0.667979, 1.0-0.335851],
-    ], dtype=np.float32)
 
 
 def _extend_rotation_matr(mat3: np.ndarray) -> np.ndarray:
@@ -336,38 +217,84 @@ def _get_pose_matrix(pose: data3d.Pose) -> np.ndarray:
     return translation.dot(rotation)
 
 
-_cl_to_gl_format_matrix = transforms3d.euler.euler2mat(np.pi, 0, 0, "rxyz")
+_opencv_rotation_matrix = transforms3d.euler.euler2mat(np.pi, 0, 0, "rxyz")
 
 
-def _from_opencl_format(points):
-    return np.array([_cl_to_gl_format_matrix.dot(point) for point in points], dtype=np.float32)
+def _from_opencv_format(points):
+    return np.array([_opencv_rotation_matrix.dot(point) for point in points], dtype=np.float32)
 
 
-class CameraTrackRenderer:
+class _PointCloudRenderer:
 
-    def __init__(self,
-                 cam_model_files: Tuple[str, str],
-                 tracked_cam_parameters: data3d.CameraParameters,
-                 tracked_cam_track: List[data3d.Pose],
-                 point_cloud: data3d.PointCloud):
-        """
-        Initialize CameraTrackRenderer. Load camera model, create buffer objects, load textures,
-        compile shaders, e.t.c.
-
-        :param cam_model_files: path to camera model obj file and texture. The model consists of
-        triangles with per-point uv and normal attributes
-        :param tracked_cam_parameters: tracked camera field of view and aspect ratio. To be used
-        for building tracked camera frustrum
-        :param point_cloud: colored point cloud
-        """
-
-        self._point_positions = vbo.VBO(_from_opencl_format(np.array(point_cloud.points, dtype=np.float32)))
+    def __init__(self, point_cloud: data3d.PointCloud):
+        self._point_positions = vbo.VBO(_from_opencv_format(np.array(point_cloud.points, dtype=np.float32)))
         self._point_colors = vbo.VBO(np.array(point_cloud.colors, dtype=np.float32))
         self._point_cloud_program = _build_point_cloud_program()
 
+    def render(self, mvp: np.ndarray):
+        with ExitStack() as stack:
+            shaders.glUseProgram(self._point_cloud_program)
+            stack.callback(lambda: shaders.glUseProgram(0))
+
+            GL.glUniformMatrix4fv(
+                GL.glGetUniformLocation(self._point_cloud_program, 'mvp'),
+                1, True, mvp)
+
+            self._point_positions.bind()
+            position_loc = GL.glGetAttribLocation(self._point_cloud_program, 'in_position')
+            GL.glEnableVertexAttribArray(position_loc)
+            stack.callback(lambda: GL.glDisableVertexAttribArray(position_loc))
+            GL.glVertexAttribPointer(position_loc, 3, GL.GL_FLOAT,
+                                     False, 0,
+                                     self._point_positions)
+            self._point_positions.unbind()
+
+            self._point_colors.bind()
+            color_loc = GL.glGetAttribLocation(self._point_cloud_program, 'in_color')
+            GL.glEnableVertexAttribArray(color_loc)
+            stack.callback(lambda: GL.glDisableVertexAttribArray(color_loc))
+            GL.glVertexAttribPointer(color_loc, 3, GL.GL_FLOAT,
+                                     False, 0,
+                                     self._point_colors)
+            self._point_colors.unbind()
+
+            GL.glDrawArrays(GL.GL_POINTS, 0, len(self._point_positions))
+
+
+class _CameraTrackLineRenderer:
+
+    def __init__(self, tracked_cam_track: List[data3d.Pose]):
+        self._cam_track_line_positions = vbo.VBO(
+            _from_opencv_format(np.array([pose.t_vec for pose in tracked_cam_track], dtype=np.float32)))
+        self._cam_track_line_program = _build_cam_track_line_program()
+
+    def render(self, mvp):
+        with ExitStack() as stack:
+            shaders.glUseProgram(self._cam_track_line_program)
+            stack.callback(lambda: shaders.glUseProgram(0))
+
+            GL.glUniformMatrix4fv(
+                GL.glGetUniformLocation(self._cam_track_line_program, 'mvp'),
+                1, True, mvp)
+
+            self._cam_track_line_positions.bind()
+            position_loc = GL.glGetAttribLocation(self._cam_track_line_program, 'in_position')
+            GL.glEnableVertexAttribArray(position_loc)
+            stack.callback(lambda: GL.glDisableVertexAttribArray(position_loc))
+            GL.glVertexAttribPointer(position_loc, 3, GL.GL_FLOAT,
+                                     False, 0,
+                                     self._cam_track_line_positions)
+            self._cam_track_line_positions.unbind()
+
+            GL.glDrawArrays(GL.GL_LINE_STRIP, 0, len(self._cam_track_line_positions))
+
+
+class _CameraModelRenderer:
+
+    def __init__(self, cam_model_files: Tuple[str, str]):
+
         cam_model = _load_obj(cam_model_files[0])
-        # self._cam_model_vertex_positions = vbo.VBO(_create_cube_vertices())
-        # self._cam_model_uvs = vbo.VBO(_create_cube_uvs())
+
         self._cam_model_vertex_positions = vbo.VBO(np.array([
             [cam_model.vertices[v_id] for v_id in face]
             for face in cam_model.faces
@@ -376,16 +303,48 @@ class CameraTrackRenderer:
             [cam_model.uvs[v_id] for v_id in face]
             for face in cam_model.faces
         ], dtype=np.float32).reshape(-1, 2))
-        self._cam_model_poses = [data3d.Pose(_cl_to_gl_format_matrix.dot(pose.r_mat).dot(_cl_to_gl_format_matrix),
-                                             _cl_to_gl_format_matrix.dot(pose.t_vec))
-                                 for pose in tracked_cam_track]
+
         self._cam_model_texture = _create_gl_texture(_load_jpg_texture(cam_model_files[1]))
+
         self._cam_model_program = _build_cam_model_program()
 
-        self._cam_track_line_positions = vbo.VBO(
-            _from_opencl_format(np.array([pose.t_vec for pose in tracked_cam_track], dtype=np.float32)))
-        self._cam_track_line_program = _build_cam_track_line_program()
+    def render(self, mvp):
+        with ExitStack() as stack:
+            shaders.glUseProgram(self._cam_model_program)
+            stack.callback(lambda: shaders.glUseProgram(0))
 
+            GL.glUniformMatrix4fv(
+                GL.glGetUniformLocation(self._cam_model_program, 'mvp'),
+                1, True, mvp)
+
+            self._cam_model_vertex_positions.bind()
+            position_loc = GL.glGetAttribLocation(self._cam_model_program, 'in_position')
+            GL.glEnableVertexAttribArray(position_loc)
+            stack.callback(lambda: GL.glDisableVertexAttribArray(position_loc))
+            GL.glVertexAttribPointer(position_loc, 3, GL.GL_FLOAT,
+                                     False, 0,
+                                     self._cam_model_vertex_positions)
+            self._cam_model_vertex_positions.unbind()
+
+            self._cam_model_uvs.bind()
+            uv_loc = GL.glGetAttribLocation(self._cam_model_program, 'in_uv')
+            GL.glEnableVertexAttribArray(uv_loc)
+            stack.callback(lambda: GL.glDisableVertexAttribArray(uv_loc))
+            GL.glVertexAttribPointer(uv_loc, 2, GL.GL_FLOAT,
+                                     False, 0,
+                                     self._cam_model_uvs)
+            self._cam_model_uvs.unbind()
+
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self._cam_model_texture)
+            GL.glUniform1i(GL.glGetUniformLocation(self._cam_model_program, 'texture_sampler'), 0)
+
+            GL.glDrawArrays(GL.GL_TRIANGLES, 0, len(self._cam_model_vertex_positions))
+
+
+class _CameraFrustrumRenderer:
+
+    def __init__(self, tracked_cam_parameters: data3d.CameraParameters):
         near = 1
         far = 22
         y_tan = np.tan(tracked_cam_parameters.fov_y / 2)
@@ -408,6 +367,71 @@ class CameraTrackRenderer:
             [[-x_tan * near, y_tan * near, -near], [-x_tan * far, y_tan * far, -far]],
         ], dtype=np.float32).flatten())
         self._cam_frustrum_program = _build_cam_frustrum_program()
+
+    def render(self, mvp):
+        with ExitStack() as stack:
+            shaders.glUseProgram(self._cam_frustrum_program)
+            stack.callback(lambda: shaders.glUseProgram(0))
+
+            GL.glUniformMatrix4fv(
+                GL.glGetUniformLocation(self._cam_frustrum_program, 'mvp'),
+                1, True, mvp)
+
+            self._cam_frustrum_positions.bind()
+            position_loc = GL.glGetAttribLocation(self._cam_frustrum_program, 'in_position')
+            GL.glEnableVertexAttribArray(position_loc)
+            stack.callback(lambda: GL.glDisableVertexAttribArray(position_loc))
+            GL.glVertexAttribPointer(position_loc, 3, GL.GL_FLOAT,
+                                     False, 0,
+                                     self._cam_frustrum_positions)
+            self._cam_frustrum_positions.unbind()
+
+            GL.glDrawArrays(GL.GL_LINES, 0, len(self._cam_frustrum_positions))
+
+
+class _CameraRenderer:
+
+    def __init__(self,
+                 cam_model_files: Tuple[str, str],
+                 tracked_cam_parameters: data3d.CameraParameters,
+                 tracked_cam_track: List[data3d.Pose]):
+
+        self._cam_model_renderer = _CameraModelRenderer(cam_model_files)
+        self._cam_frustrum_renderer = _CameraFrustrumRenderer(tracked_cam_parameters)
+
+        self._cam_poses = [data3d.Pose(_opencv_rotation_matrix.dot(pose.r_mat).dot(_opencv_rotation_matrix),
+                                       _opencv_rotation_matrix.dot(pose.t_vec))
+                           for pose in tracked_cam_track]
+
+    def render(self, pv_matrix: np.ndarray, tracked_cam_track_pos_float: float):
+        cam_model_pose_matrix = _get_pose_matrix(self._cam_poses[int(tracked_cam_track_pos_float)])
+        cam_mvp = pv_matrix.dot(cam_model_pose_matrix)
+
+        self._cam_model_renderer.render(cam_mvp)
+        self._cam_frustrum_renderer.render(cam_mvp)
+
+
+class CameraTrackRenderer:
+
+    def __init__(self,
+                 cam_model_files: Tuple[str, str],
+                 tracked_cam_parameters: data3d.CameraParameters,
+                 tracked_cam_track: List[data3d.Pose],
+                 point_cloud: data3d.PointCloud):
+        """
+        Initialize CameraTrackRenderer. Load camera model, create buffer objects, load textures,
+        compile shaders, e.t.c.
+
+        :param cam_model_files: path to camera model obj file and texture. The model consists of
+        triangles with per-point uv and normal attributes
+        :param tracked_cam_parameters: tracked camera field of view and aspect ratio. To be used
+        for building tracked camera frustrum
+        :param point_cloud: colored point cloud
+        """
+
+        self._point_cloud_renderer = _PointCloudRenderer(point_cloud)
+        self._cam_track_line_renderer = _CameraTrackLineRenderer(tracked_cam_track)
+        self._cam_renderer = _CameraRenderer(cam_model_files, tracked_cam_parameters, tracked_cam_track)
 
         GLUT.glutInitDisplayMode(GLUT.GLUT_RGBA | GLUT.GLUT_DOUBLE | GLUT.GLUT_DEPTH)
         GL.glEnable(GL.GL_DEPTH_TEST)
@@ -447,115 +471,8 @@ class CameraTrackRenderer:
 
         pv_matrix = projection_mat.dot(view_mat)
 
-        self._render_point_cloud(pv_matrix)
-        self._render_cam_track_line(pv_matrix)
-
-        cam_model_pose_matrix = _get_pose_matrix(self._cam_model_poses[int(tracked_cam_track_pos_float)])
-        cam_mvp = pv_matrix.dot(cam_model_pose_matrix)
-        self._render_cam_model(cam_mvp)
-        self._render_cam_frustrum(cam_mvp)
+        self._point_cloud_renderer.render(pv_matrix)
+        self._cam_track_line_renderer.render(pv_matrix)
+        self._cam_renderer.render(pv_matrix, tracked_cam_track_pos_float)
 
         GLUT.glutSwapBuffers()
-
-    def _render_point_cloud(self, mvp):
-        with ExitStack() as stack:
-            shaders.glUseProgram(self._point_cloud_program)
-            stack.callback(lambda: shaders.glUseProgram(0))
-
-            GL.glUniformMatrix4fv(
-                GL.glGetUniformLocation(self._point_cloud_program, 'mvp'),
-                1, True, mvp)
-
-            self._point_positions.bind()
-            position_loc = GL.glGetAttribLocation(self._point_cloud_program, 'in_position')
-            GL.glEnableVertexAttribArray(position_loc)
-            stack.callback(lambda: GL.glDisableVertexAttribArray(position_loc))
-            GL.glVertexAttribPointer(position_loc, 3, GL.GL_FLOAT,
-                                     False, 0,
-                                     self._point_positions)
-            self._point_positions.unbind()
-
-            self._point_colors.bind()
-            color_loc = GL.glGetAttribLocation(self._point_cloud_program, 'in_color')
-            GL.glEnableVertexAttribArray(color_loc)
-            stack.callback(lambda: GL.glDisableVertexAttribArray(color_loc))
-            GL.glVertexAttribPointer(color_loc, 3, GL.GL_FLOAT,
-                                     False, 0,
-                                     self._point_colors)
-            self._point_colors.unbind()
-
-            GL.glDrawArrays(GL.GL_POINTS, 0, len(self._point_positions))
-
-    def _render_cam_track_line(self, mvp):
-        with ExitStack() as stack:
-            shaders.glUseProgram(self._cam_track_line_program)
-            stack.callback(lambda: shaders.glUseProgram(0))
-
-            GL.glUniformMatrix4fv(
-                GL.glGetUniformLocation(self._cam_track_line_program, 'mvp'),
-                1, True, mvp)
-
-            self._cam_track_line_positions.bind()
-            position_loc = GL.glGetAttribLocation(self._cam_track_line_program, 'in_position')
-            GL.glEnableVertexAttribArray(position_loc)
-            stack.callback(lambda: GL.glDisableVertexAttribArray(position_loc))
-            GL.glVertexAttribPointer(position_loc, 3, GL.GL_FLOAT,
-                                     False, 0,
-                                     self._cam_track_line_positions)
-            self._cam_track_line_positions.unbind()
-
-            GL.glDrawArrays(GL.GL_LINE_STRIP, 0, len(self._cam_track_line_positions))
-
-    def _render_cam_model(self, mvp):
-        with ExitStack() as stack:
-            shaders.glUseProgram(self._cam_model_program)
-            stack.callback(lambda: shaders.glUseProgram(0))
-
-            GL.glUniformMatrix4fv(
-                GL.glGetUniformLocation(self._cam_model_program, 'mvp'),
-                1, True, mvp)
-
-            self._cam_model_vertex_positions.bind()
-            position_loc = GL.glGetAttribLocation(self._cam_model_program, 'in_position')
-            GL.glEnableVertexAttribArray(position_loc)
-            stack.callback(lambda: GL.glDisableVertexAttribArray(position_loc))
-            GL.glVertexAttribPointer(position_loc, 3, GL.GL_FLOAT,
-                                     False, 0,
-                                     self._cam_model_vertex_positions)
-            self._cam_model_vertex_positions.unbind()
-
-            self._cam_model_uvs.bind()
-            uv_loc = GL.glGetAttribLocation(self._cam_model_program, 'in_uv')
-            GL.glEnableVertexAttribArray(uv_loc)
-            stack.callback(lambda: GL.glDisableVertexAttribArray(uv_loc))
-            GL.glVertexAttribPointer(uv_loc, 2, GL.GL_FLOAT,
-                                     False, 0,
-                                     self._cam_model_uvs)
-            self._cam_model_uvs.unbind()
-
-            GL.glActiveTexture(GL.GL_TEXTURE0)
-            GL.glBindTexture(GL.GL_TEXTURE_2D, self._cam_model_texture)
-            GL.glUniform1i(GL.glGetUniformLocation(self._cam_model_program, 'texture_sampler'), 0)
-
-            GL.glDrawArrays(GL.GL_TRIANGLES, 0, len(self._cam_model_vertex_positions))
-
-    def _render_cam_frustrum(self, mvp):
-        with ExitStack() as stack:
-            shaders.glUseProgram(self._cam_frustrum_program)
-            stack.callback(lambda: shaders.glUseProgram(0))
-
-            GL.glUniformMatrix4fv(
-                GL.glGetUniformLocation(self._cam_frustrum_program, 'mvp'),
-                1, True, mvp)
-
-            self._cam_frustrum_positions.bind()
-            position_loc = GL.glGetAttribLocation(self._cam_frustrum_program, 'in_position')
-            GL.glEnableVertexAttribArray(position_loc)
-            stack.callback(lambda: GL.glDisableVertexAttribArray(position_loc))
-            GL.glVertexAttribPointer(position_loc, 3, GL.GL_FLOAT,
-                                     False, 0,
-                                     self._cam_frustrum_positions)
-            self._cam_frustrum_positions.unbind()
-
-            GL.glDrawArrays(GL.GL_LINES, 0, len(self._cam_frustrum_positions))
-
