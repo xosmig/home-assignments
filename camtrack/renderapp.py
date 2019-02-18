@@ -36,16 +36,18 @@ def _rescale_track(cam_track, scale):
 
 
 class CameraTrackRendererApp:
-    _camera_fov_y_range = namedtuple('FovRange', 'min default max')(
-        np.pi / 6, np.pi / 4, np.pi / 2
-    )
-    _change_rates = namedtuple('ChangeRates', 'track_pos tr_xz tr_y camera')(
-        80.0, 6.0, 1.0, 0.01
-    )
-
-    def __init__(self, cam_model_files,
+    def __init__(self,
+                 cam_model_files,
                  tracked_cam_parameters, cam_track,
-                 point_cloud):
+                 point_cloud,
+                 animation_speed):
+        self._camera_fov_y_range = namedtuple('FovRange', 'min default max')(
+            np.pi / 6, np.pi / 4, np.pi / 2
+        )
+        self._change_rates = namedtuple('ChangeRates', 'track_pos tr_xz tr_y camera')(
+            animation_speed, 6.0, 1.0, 0.01
+        )
+
         point_cloud_ids, point_cloud_points, point_cloud_colors = point_cloud
         if point_cloud_colors is None:
             point_cloud_colors = np.ones(point_cloud_points.shape, dtype=np.float32)
@@ -187,7 +189,8 @@ class CameraTrackRendererApp:
 @click.argument('camera_parameters', type=click.File('r'))
 @click.argument('poses', type=click.File('r'))
 @click.argument('point_cloud', type=click.File('r'))
-def cli(camera_parameters, poses, point_cloud):
+@click.option('--animation_speed', default=80.0, type=float)
+def cli(camera_parameters, poses, point_cloud, animation_speed):
     import os.path
     script_path = os.path.abspath(os.path.dirname(__file__))
     camera_model_files = (os.path.join(script_path, 'camera_model/geometry.obj'),
@@ -197,8 +200,8 @@ def cli(camera_parameters, poses, point_cloud):
         camera_model_files,
         read_camera_parameters(camera_parameters),
         read_poses(poses),
-        read_point_cloud(point_cloud)
-    )
+        read_point_cloud(point_cloud),
+        animation_speed)
     renderer.show()
 
 

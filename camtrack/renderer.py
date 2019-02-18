@@ -12,12 +12,13 @@ from OpenGL.GL import shaders
 from OpenGL import GLUT
 from OpenGL.arrays import vbo
 
-from collections import namedtuple
-from contextlib import ExitStack
-
+from quaternion import Quaternion
 from PIL import Image
 import transforms3d
 import data3d
+
+from collections import namedtuple
+from contextlib import ExitStack
 
 
 def _build_point_cloud_program():
@@ -156,9 +157,6 @@ def _load_obj(path: str) -> ObjModel:
     vertices = np.array([line.split()[1:] for line in lines if line.startswith("v ")], dtype=np.float32)
     normals = np.array([line.split()[1:] for line in lines if line.startswith("vn ")], dtype=np.float32)
     uvs = np.array([line.split()[1:] for line in lines if line.startswith("vt ")], dtype=np.float32)
-
-    print(vertices[0])
-    print(uvs[0])
 
     def _parse_face(line):
         face_vertex_ids = [id - 1 if id > 0 else id + len(vertices) for id in map(int, line.split()[1:])]
@@ -404,7 +402,23 @@ class _CameraRenderer:
                            for pose in tracked_cam_track]
 
     def render(self, pv_matrix: np.ndarray, tracked_cam_track_pos_float: float):
-        cam_model_pose_matrix = _get_pose_matrix(self._cam_poses[int(tracked_cam_track_pos_float)])
+        camera_pos_floor = int(np.floor(tracked_cam_track_pos_float))
+        assert camera_pos_floor >= 0
+        camera_pos_ceil = int(np.ceil(tracked_cam_track_pos_float))
+        assert camera_pos_ceil <= len(self._cam_poses) - 1
+        camera_pos_fraction = tracked_cam_track_pos_float - camera_pos_floor
+        assert 0 <= camera_pos_fraction <= 1
+
+        floor_quaternion = Quaternion(matrix=self._cam_poses[camera_pos_floor].r_mat)
+        ceil_quaternion = Quaternion(matrix=self._cam_poses[camera_pos_ceil].r_mat)
+        rotation_matrix = Quaternion.slerp(floor_quaternion, ceil_quaternion, camera_pos_fraction).rotation_matrix
+
+        floor_trans_vector = self._cam_poses[camera_pos_floor].t_vec
+        ceil_trans_vector = self._cam_poses[camera_pos_ceil].t_vec
+        translation_vector = ceil_trans_vector * camera_pos_fraction + floor_trans_vector * (1 - camera_pos_fraction)
+
+        # cam_model_pose_matrix = _get_pose_matrix(self._cam_poses[camera_pos_floor])
+        cam_model_pose_matrix = _get_pose_matrix(data3d.Pose(r_mat=rotation_matrix, t_vec=translation_vector))
         cam_mvp = pv_matrix.dot(cam_model_pose_matrix)
 
         self._cam_model_renderer.render(cam_mvp)
