@@ -15,7 +15,8 @@ __all__ = [
     'rodrigues_and_translation_to_view_mat3x4',
     'to_opencv_camera_mat3x3',
     'triangulate_correspondences',
-    'view_mat3x4_to_pose'
+    'view_mat3x4_to_pose',
+    'pose_to_view_mat3x4'
 ]
 
 from collections import namedtuple
