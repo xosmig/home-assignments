@@ -8,7 +8,11 @@ __all__ = [
     'calc_translation_errors',
     'calc_rotation_error_rad',
     'calc_rotation_errors_rad',
-    'calc_errors'
+    'calc_errors',
+    'calc_auc',
+    'calc_vol_under_surface',
+    'MAX_ROTATION_ERR_RAD',
+    'MAX_TRANSLATION_ERR'
 ]
 
 from typing import List, Tuple
@@ -88,6 +92,35 @@ def calc_errors(ground_truth_track: List[Pose],
     return r_errors, t_errors
 
 
+def calc_auc(errors: np.ndarray, max_error: float) -> float:
+    return ((1.0 - np.minimum(1.0, errors / max_error)) / errors.size).sum()
+
+
+def _build_error_curve(errors: np.ndarray, max_error: float) \
+        -> Tuple[np.ndarray, np.ndarray]:
+    cost = 1.0 / errors.size
+    sorted_errors = np.sort(errors)
+    size = np.searchsorted(sorted_errors, max_error)
+    x = sorted_errors[:size]
+    y = np.cumsum(np.full_like(x, cost))
+    x = np.concatenate((np.zeros((1,)), x, np.full((1,), max_error)))
+    y = np.concatenate((np.zeros((1,)), y, np.full((1,), y[-1])))
+    return x, y
+
+
+MAX_ROTATION_ERR_RAD = np.pi / 8
+MAX_ROTATION_ERR_DEG = np.rad2deg(MAX_ROTATION_ERR_RAD)
+MAX_TRANSLATION_ERR = 0.25
+
+
+def calc_vol_under_surface(r_errors: np.ndarray, t_errors: np.ndarray,
+                           max_r_error: float = MAX_ROTATION_ERR_RAD,
+                           max_t_error: float = MAX_TRANSLATION_ERR) -> float:
+    tmp_1 = 1.0 - np.minimum(1.0, r_errors / max_r_error)
+    tmp_2 = 1.0 - np.minimum(1.0, t_errors / max_t_error)
+    return (tmp_1 * tmp_2).sum() / r_errors.size
+
+
 # pylint:disable=no-value-for-parameter
 @click.command()
 @click.argument('ground_truth_file', type=click.File('r'))
@@ -101,15 +134,19 @@ def _cli(ground_truth_file, estimate_file, plot):
 
     r_max = r_errors.max()
     r_median = np.median(r_errors)
+    r_auc = calc_auc(r_errors, MAX_ROTATION_ERR_DEG)
     t_max = t_errors.max()
     t_median = np.median(t_errors)
-    click.echo('Rotation errors (degrees)\n  max = {}\n  median = {}'.format(
-        r_max,
-        r_median
-    ))
-    click.echo('Translation errors\n  max = {}\n  median = {}'.format(
-        t_max,
-        t_median
+    t_auc = calc_auc(t_errors, MAX_TRANSLATION_ERR)
+
+    r_line_template = 'Rotation errors (degrees)' \
+                      '\n  max = {}\n  median = {}\n  AUC = {}'
+    click.echo(r_line_template.format(r_max, r_median, r_auc))
+    t_line_template = 'Translation errors' \
+                      '\n  max = {}\n  median = {}\n  AUC = {}'
+    click.echo(t_line_template.format(t_max, t_median, t_auc))
+    click.echo('Volume under surface = {}'.format(
+        calc_vol_under_surface(r_errors, t_errors, MAX_ROTATION_ERR_DEG)
     ))
 
     if not plot:
@@ -117,16 +154,28 @@ def _cli(ground_truth_file, estimate_file, plot):
 
     import matplotlib.pyplot as plt
     plt.figure(1)
-    plt.subplot(211)
-    plt.plot(r_errors)
-    plt.stem(r_errors, linefmt='g:')
-    plt.xlabel('frame')
+    plt.subplot(2, 2, 1)
+    plt.plot(r_errors, 'g')
+    plt.xlim([0, r_errors.size])
+    plt.xlabel('Frame')
     plt.ylabel('Rotation error (degrees)')
-    plt.subplot(212)
-    plt.plot(t_errors)
-    plt.stem(t_errors, linefmt='g:')
-    plt.xlabel('frame')
+    plt.subplot(2, 2, 2)
+    plt.plot(*_build_error_curve(r_errors, MAX_ROTATION_ERR_DEG), 'r')
+    plt.xlim([0.0, MAX_ROTATION_ERR_DEG])
+    plt.ylim([0.0, 1.0])
+    plt.xlabel('Rotation error (degrees)')
+    plt.ylabel('Frame rate')
+    plt.subplot(2, 2, 3)
+    plt.plot(t_errors, 'g')
+    plt.xlim([0, t_errors.size])
+    plt.xlabel('Frame')
     plt.ylabel('Translation error')
+    plt.subplot(2, 2, 4)
+    plt.plot(*_build_error_curve(t_errors, MAX_TRANSLATION_ERR), 'r')
+    plt.xlim([0.0, MAX_TRANSLATION_ERR])
+    plt.ylim([0.0, 1.0])
+    plt.xlabel('Translation error')
+    plt.ylabel('Frame rate')
     plt.show()
 
 
