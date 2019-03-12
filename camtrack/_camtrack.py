@@ -251,7 +251,7 @@ class PointCloudBuilder:
     def __init__(self, ids: np.ndarray = None, points: np.ndarray = None,
                  colors: np.ndarray = None) -> None:
         super().__init__()
-        self._ids = ids if ids is not None else np.array([])
+        self._ids = ids if ids is not None else np.array([], dtype=np.int)
         self._points = points if points is not None else np.array([])
         self._colors = colors
         self._sort_data()
