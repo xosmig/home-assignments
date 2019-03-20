@@ -58,7 +58,7 @@ def calc_translation_errors(ground_truth_t_vecs: np.ndarray,
         ground_truth_t_vecs.flatten(),
         rcond=None
     )
-    scale = scale.item()
+    scale = np.abs(scale.item())
     scaled_estimate_t_vecs = scale * estimate_t_vecs
     ground_truth_track_length = calc_track_length(ground_truth_t_vecs)
     return np.linalg.norm(ground_truth_t_vecs - scaled_estimate_t_vecs,
