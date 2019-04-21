@@ -44,10 +44,12 @@ class FrameCorners:
         :param points: coordinates of corners
         :param sizes: block sizes used for corner calculation (in pixels on original image format)
         """
+        assert len(ids) == len(points) == len(sizes)
         sorting_idx = np.argsort(ids.flatten())
         self._ids = ids[sorting_idx].reshape(-1, 1)
         self._points = points[sorting_idx].reshape(-1, 2)
         self._sizes = sizes[sorting_idx].reshape(-1, 1)
+        assert len(self._ids) == len(self._points) == len(self._sizes)
 
     @property
     def ids(self):
