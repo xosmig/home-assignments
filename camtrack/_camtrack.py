@@ -16,7 +16,8 @@ __all__ = [
     'to_opencv_camera_mat3x3',
     'triangulate_correspondences',
     'view_mat3x4_to_pose',
-    'pose_to_view_mat3x4'
+    'pose_to_view_mat3x4',
+    'apply_correspondences_mask'
 ]
 
 from collections import namedtuple
@@ -152,6 +153,18 @@ def build_correspondences(corners_1: FrameCorners, corners_2: FrameCorners,
     if ids_to_remove is not None:
         corrs = _remove_correspondences_with_ids(corrs, ids_to_remove)
     return corrs
+
+
+def apply_correspondences_mask(correspondences, mask):
+    mask = mask.flatten()
+    ids = correspondences.ids.flatten()
+    assert len(mask) == len(ids)
+
+    if mask.dtype == np.int:
+        mask = mask != 0
+
+    ids_to_remove = ids[mask == False]
+    return _remove_correspondences_with_ids(correspondences, ids_to_remove)
 
 
 def _calc_z_mask(points3d, view_mat, min_depth):
