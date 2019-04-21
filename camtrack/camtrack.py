@@ -49,6 +49,14 @@ def _track_2_frames(corners_1: FrameCorners, corners_2: FrameCorners, intrinsic_
 
     correspondences = apply_correspondences_mask(correspondences, inliers_mask)
 
+    _, homography_inliers_mask = cv2.findHomography(
+        correspondences.points_1,
+        correspondences.points_2,
+        method=cv2.RANSAC)
+
+    if np.mean(homography_inliers_mask) >= 0.6:
+        return None
+
     r_candidate_1, r_candidate_2, t_candidate = cv2.decomposeEssentialMat(essential_matrix)
     pose_candidates = [view_mat3x4_to_pose(np.hstack((view_r_mat, view_t_vec)))
                        for view_r_mat in (r_candidate_1, r_candidate_2)
@@ -65,28 +73,27 @@ def _track_2_frames(corners_1: FrameCorners, corners_2: FrameCorners, intrinsic_
 
     (points_3d, ids), pose, _ = max([try_pose(pose) for pose in pose_candidates], key=lambda x: x[-1])
 
-    # TODO: validate with homography (whatever that means).
-
     # TODO: check quality
     quality = len(points_3d)  # TODO
 
     return points_3d, ids, pose, quality
 
 
-def _initialize_tracking(corner_storage: CornerStorage, intrinsic_mat: np.ndarray) \
-        -> _InitializationResult:
+def _initialize_tracking(corner_storage: CornerStorage, intrinsic_mat: np.ndarray) -> Optional[_InitializationResult]:
     frame1_candidates = [0]  # TODO
     frame2_candidates = list(range(1, len(corner_storage)))
 
-    frame1, frame2, (points_3d, ids, pose, quality) = max(
+    best_result = max(
         [(frame1, frame2, _track_2_frames(corner_storage[frame1], corner_storage[frame2], intrinsic_mat))
          for frame1 in frame1_candidates
          for frame2 in frame2_candidates],
-        key=lambda x: x[-1][-1]
+        key=lambda x: x[-1][-1] if x[-1] is not None else 0
     )
 
-    # TODO: Warning if the quality is too low
+    if best_result is None:
+        return None
 
+    frame1, frame2, (points_3d, ids, pose, quality) = best_result
     return _InitializationResult(frame1, frame2, points_3d, ids, pose, quality)
 
 
@@ -127,7 +134,7 @@ def _solve_pnp(
         frame_corners: FrameCorners,
         prev_view_matrix: np.ndarray,
         intrinsic_mat: np.ndarray,
-        points_3d: PointCloudBuilder) -> Tuple[np.ndarray, Set[int]]:
+        points_3d: PointCloudBuilder) -> Tuple[Optional[np.ndarray], Set[int]]:
 
     _, (idx_2d, idx_3d) = snp.intersect(
         frame_corners.ids.flatten(),
@@ -138,13 +145,7 @@ def _solve_pnp(
     pnp_3d_points = points_3d.points[idx_3d]
 
     if len(pnp_frame_corners.ids) < 6:
-        # # TODO: handle this case
-        # print("FOOBAR: finished on frame {}".format(frame), file=sys.stderr)
-        # assert frame > 0
-        # for f in range(frame, len(corner_storage)):
-        #     view_matrices[f] = view_matrices[frame - 1]
-        # break
-        raise ValueError()  # FIXME
+        return None, set()
 
     prev_r_vector = _rotation_matrix_to_vector(prev_view_matrix[:, :3])
     prev_t_vector = prev_view_matrix[:, 3]
@@ -153,15 +154,15 @@ def _solve_pnp(
         pnp_3d_points,
         pnp_frame_corners.points,
         intrinsic_mat,
-        distCoeffs=None,  # TODO: wth is it?
+        distCoeffs=None,  # TODO: what is it?
         rvec=prev_r_vector,
         tvec=prev_t_vector,
         useExtrinsicGuess=True,
         # reprojectionError=, # TODO
     ))
 
-    # TODO: handle failure
-    assert ransac_success
+    if not ransac_success:
+        return None, set()
 
     frame_view_matrix = _components_to_view_mat3x4(_rotation_vector_to_matrix(r_vector), t_vector)
     new_outliers = np.delete(pnp_frame_corners.ids.flatten(), inliers.flatten())
@@ -174,6 +175,10 @@ def _track_camera(corner_storage: CornerStorage,
         -> Tuple[List[np.ndarray], PointCloudBuilder]:
 
     init_res = _initialize_tracking(corner_storage, intrinsic_mat)
+    if init_res is None:
+        print("Failed to initialize :(", file=sys.stderr)
+        exit(2)
+
     assert init_res.frame1 == 0
     print("Initialized using frames {} and {}".format(init_res.frame1, init_res.frame2), file=sys.stderr)
     print("Number of 3d points: {}".format(len(init_res.points_3d)), file=sys.stderr)
@@ -210,7 +215,10 @@ def _track_camera(corner_storage: CornerStorage,
             view_matrices[frame - 1],
             intrinsic_mat,
             point_cloud_builder)
-        assert frame_view_matrix is not None  # TODO: handle failure
+
+        if frame_view_matrix is None:
+            print("Failed to solve pnp :(", file=sys.stderr)
+            exit(2)
 
         view_matrices[frame] = frame_view_matrix
         outliers.update(new_outliers)
