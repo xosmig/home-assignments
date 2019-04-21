@@ -205,8 +205,7 @@ def _track_camera(corner_storage: CornerStorage,
               .format(frame_number=frame,
                       total_frames=len(corner_storage),
                       point_cloud_size=len(point_cloud_builder.ids),
-                      outliers_count=len(outliers)),
-              file=sys.stderr)
+                      outliers_count=len(outliers)))
 
         assert frame > 0
         assert view_matrices[frame - 1] is not None
