@@ -7,7 +7,7 @@ __all__ = [
 
 import sys
 from collections import namedtuple
-from typing import List, Tuple, Set, Callable
+from typing import List, Tuple, Set, Callable, Optional
 
 import numpy as np
 import sortednp as snp
@@ -75,21 +75,19 @@ def _track_2_frames(corners_1: FrameCorners, corners_2: FrameCorners, intrinsic_
 
 def _initialize_tracking(corner_storage: CornerStorage, intrinsic_mat: np.ndarray) \
         -> _InitializationResult:
-    frame_1_candidates = [0]  # TODO
-    frame_2_candidates = list(range(1, len(corner_storage)))
-    # frame_2_candidates = list(range(50, len(corner_storage)))
+    frame1_candidates = [0]  # TODO
+    frame2_candidates = list(range(1, len(corner_storage)))
 
-    frame_1, frame_2, (points_3d, ids, pose, quality) = max(
-        [(frame_1, frame_2, _track_2_frames(corner_storage[frame_1], corner_storage[frame_2], intrinsic_mat))
-         for frame_1 in frame_1_candidates
-         for frame_2 in frame_2_candidates],
+    frame1, frame2, (points_3d, ids, pose, quality) = max(
+        [(frame1, frame2, _track_2_frames(corner_storage[frame1], corner_storage[frame2], intrinsic_mat))
+         for frame1 in frame1_candidates
+         for frame2 in frame2_candidates],
         key=lambda x: x[-1][-1]
     )
-    print(len(points_3d))
 
     # TODO: Warning if the quality is too low
 
-    return _InitializationResult(frame_1, frame_2, points_3d, ids, pose, quality)
+    return _InitializationResult(frame1, frame2, points_3d, ids, pose, quality)
 
 
 def _filter_corners_on_id(frame_corners: FrameCorners, id_predicate: Callable[[int], bool]) -> FrameCorners:
@@ -125,6 +123,52 @@ def _cv2_to_numpy(t: Tuple) -> Tuple:
     return tuple(val.get() if isinstance(val, cv2.UMat) else val for val in t)
 
 
+def _solve_pnp(
+        frame_corners: FrameCorners,
+        prev_view_matrix: np.ndarray,
+        intrinsic_mat: np.ndarray,
+        points_3d: PointCloudBuilder) -> Tuple[np.ndarray, Set[int]]:
+
+    _, (idx_2d, idx_3d) = snp.intersect(
+        frame_corners.ids.flatten(),
+        points_3d.ids.flatten(),
+        indices=True)
+
+    pnp_frame_corners = _select_corners_by_indices(frame_corners, idx_2d)
+    pnp_3d_points = points_3d.points[idx_3d]
+
+    if len(pnp_frame_corners.ids) < 6:
+        # # TODO: handle this case
+        # print("FOOBAR: finished on frame {}".format(frame), file=sys.stderr)
+        # assert frame > 0
+        # for f in range(frame, len(corner_storage)):
+        #     view_matrices[f] = view_matrices[frame - 1]
+        # break
+        raise ValueError()  # FIXME
+
+    prev_r_vector = _rotation_matrix_to_vector(prev_view_matrix[:, :3])
+    prev_t_vector = prev_view_matrix[:, 3]
+
+    ransac_success, r_vector, t_vector, inliers = _cv2_to_numpy(cv2.solvePnPRansac(
+        pnp_3d_points,
+        pnp_frame_corners.points,
+        intrinsic_mat,
+        distCoeffs=None,  # TODO: wth is it?
+        rvec=prev_r_vector,
+        tvec=prev_t_vector,
+        useExtrinsicGuess=True,
+        # reprojectionError=, # TODO
+    ))
+
+    # TODO: handle failure
+    assert ransac_success
+
+    frame_view_matrix = _components_to_view_mat3x4(_rotation_vector_to_matrix(r_vector), t_vector)
+    new_outliers = np.delete(pnp_frame_corners.ids.flatten(), inliers.flatten())
+
+    return frame_view_matrix, set(new_outliers)
+
+
 def _track_camera(corner_storage: CornerStorage,
                   intrinsic_mat: np.ndarray) \
         -> Tuple[List[np.ndarray], PointCloudBuilder]:
@@ -132,6 +176,7 @@ def _track_camera(corner_storage: CornerStorage,
     init_res = _initialize_tracking(corner_storage, intrinsic_mat)
     assert init_res.frame1 == 0
     print("Initialized using frames {} and {}".format(init_res.frame1, init_res.frame2), file=sys.stderr)
+    print("Number of 3d points: {}".format(len(init_res.points_3d)), file=sys.stderr)
 
     view_matrices = list(None for _ in range(len(corner_storage)))
     view_matrices[init_res.frame1] = eye3x4()
@@ -142,63 +187,53 @@ def _track_camera(corner_storage: CornerStorage,
 
     outliers = set()
 
+    def _remove_outliers(corners):
+        return _filter_corners_on_id(corners, lambda id: id not in outliers)
+
     for frame in range(len(corner_storage)):
         if view_matrices[frame] is not None:
             continue
 
-        pnp_frame_corners = _filter_corners_on_id(corner_storage[frame], lambda id: id not in outliers)
-
-        _, (idx_2d, idx_3d) = snp.intersect(
-            pnp_frame_corners.ids.flatten(),
-            point_cloud_builder.ids.flatten(),
-            indices=True)
-
-        pnp_frame_corners = _select_corners_by_indices(pnp_frame_corners, idx_2d)
-        pnp_3d_points = point_cloud_builder.points[idx_3d]
-
-        print(("Processing frame {frame_number} ("
+        print(("Processing frame {frame_number} / {total_frames} ("
                "PointCloudSize: {point_cloud_size}, "
                "OutliersCount: {outliers_count})")
               .format(frame_number=frame,
+                      total_frames=len(corner_storage),
                       point_cloud_size=len(point_cloud_builder.ids),
                       outliers_count=len(outliers)),
               file=sys.stderr)
 
-        if len(pnp_frame_corners.ids) < 6:
-            # TODO: handle this case
-            print("FOOBAR: finished on frame {}".format(frame), file=sys.stderr)
-            assert frame > 0
-            for f in range(frame, len(corner_storage)):
-                view_matrices[f] = view_matrices[frame - 1]
-            break
-
         assert frame > 0
         assert view_matrices[frame - 1] is not None
-        prev_r_vector = _rotation_matrix_to_vector(view_matrices[frame - 1][:, :3])
-        prev_t_vector = view_matrices[frame - 1][:, 3]
-
-        ransac_success, r_vector, t_vector, inliers = _cv2_to_numpy(cv2.solvePnPRansac(
-            pnp_3d_points,
-            pnp_frame_corners.points,
+        frame_view_matrix, new_outliers = _solve_pnp(
+            _remove_outliers(corner_storage[frame]),
+            view_matrices[frame - 1],
             intrinsic_mat,
-            distCoeffs=None,  # TODO: wth is it?
-            rvec=prev_r_vector,
-            tvec=prev_t_vector,
-            useExtrinsicGuess=True,
-            # reprojectionError=, # TODO
-        ))
+            point_cloud_builder)
+        assert frame_view_matrix is not None  # TODO: handle failure
 
-        # TODO: handle failure
-        assert ransac_success
+        view_matrices[frame] = frame_view_matrix
+        outliers.update(new_outliers)
 
-        view_matrices[frame] = _components_to_view_mat3x4(_rotation_vector_to_matrix(r_vector), t_vector)
-        new_outliers = np.delete(pnp_frame_corners.ids.flatten(), inliers.flatten())
+        for past_frame in range(frame):
+            correspondences = build_correspondences(
+                _remove_outliers(corner_storage[past_frame]),
+                _remove_outliers(corner_storage[frame]),
+                ids_to_remove=point_cloud_builder.ids)
 
-        print("FOOBAR2: number of points: {}, number of inliers: {}, number of outliers: {}"
-              .format(len(pnp_frame_corners.ids), len(inliers), len(new_outliers)), file=sys.stderr)
+            assert view_matrices[past_frame].shape == (3, 4), "past_frame == {}".format(past_frame)
+            assert view_matrices[frame].shape == (3, 4), "frame == {}".format(frame)
+            if len(correspondences.ids) == 0:
+                continue
 
-        # TODO: check the number of new outliers?
-        outliers.update(list(new_outliers))
+            new_points_3d, new_ids = triangulate_correspondences(
+                correspondences,
+                view_mat_1=view_matrices[past_frame],
+                view_mat_2=view_matrices[frame],
+                intrinsic_mat=intrinsic_mat,
+                parameters=_TRIANGULATION_PARAMETERS)
+
+            point_cloud_builder.add_points(new_ids, new_points_3d)
 
     return view_matrices, point_cloud_builder
 
