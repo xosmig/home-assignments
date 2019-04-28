@@ -1,12 +1,14 @@
 from typing import List, Tuple, Optional
 
 import time
+from copy import deepcopy
 
 import numpy as np
 import sortednp as snp
 from scipy.sparse import lil_matrix
 from scipy.optimize import least_squares, OptimizeResult
 
+from _corners import filter_frame_corners_on_id
 from corners import FrameCorners
 from _camtrack import (
     PointCloudBuilder,
@@ -50,7 +52,22 @@ def _from_param_vector(n_cameras: int, n_points: int, params: np.ndarray) -> Tup
     return view_mats, points_3d
 
 
-def _calculate_residuals(
+def _calculate_frame_residuals(
+        view_mat: np.ndarray,
+        points_3d: np.ndarray,
+        intrinsic_mat: np.ndarray,
+        frame_corners: FrameCorners,
+        points_3d_ids: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+    _, (idx_2d, idx_3d) = snp.intersect(frame_corners.ids.flatten(), points_3d_ids, indices=True)
+
+    assert view_mat.shape == (3, 4)
+    proj_mat = intrinsic_mat @ view_mat
+
+    frame_residuals = compute_reprojection_errors(points_3d[idx_3d], frame_corners.points[idx_2d], proj_mat).flatten()
+    return frame_residuals, idx_2d, idx_3d
+
+def _calculate_residuals_from_params(
         params: np.ndarray,
         intrinsic_mat: np.ndarray,
         list_of_corners: List[FrameCorners],
@@ -67,15 +84,14 @@ def _calculate_residuals(
     all_residuals = []
     num_of_residuals = 0
     for view_mat, frame_corners in zip(view_mats, list_of_corners):
-        _, (idx_2d, idx_3d) = snp.intersect(frame_corners.ids.flatten(), points_3d_ids, indices=True)
-        num_of_residuals += len(idx_2d)
-
-        assert view_mat.shape == (3, 4)
-        proj_mat = intrinsic_mat @ view_mat
-
-        frame_residuals = np.minimum(
-            compute_reprojection_errors(points_3d[idx_3d], frame_corners.points[idx_2d], proj_mat),
-            max_inlier_reprojection_error)
+        frame_residuals, _, _ = _calculate_frame_residuals(
+            view_mat,
+            points_3d,
+            intrinsic_mat,
+            frame_corners,
+            points_3d_ids)
+        frame_residuals = np.minimum(frame_residuals, max_inlier_reprojection_error)
+        num_of_residuals += len(frame_residuals)
         all_residuals.append(frame_residuals)
 
     all_residuals = np.concatenate(all_residuals)
@@ -137,11 +153,32 @@ def run_bundle_adjustment(
         view_mats: List[np.ndarray],
         pc_builder: PointCloudBuilder) -> List[np.ndarray]:
 
-    # Inspired by https://scipy-cookbook.readthedocs.io/items/bundle_adjustment.html
-
     assert len(list_of_corners) == len(view_mats)
     n_cameras = len(view_mats)
     n_points = len(pc_builder.ids)
+
+    n_corners_initial = sum(len(frame_corners.ids) for frame_corners in list_of_corners)
+    list_of_corners = deepcopy(list_of_corners)
+
+    n_corners_deleted = 0
+    for frame, (view_mat, frame_corners) in enumerate(zip(view_mats, list_of_corners)):
+        frame_residuals, idx_2d, _ = _calculate_frame_residuals(
+            view_mat,
+            pc_builder.points,
+            intrinsic_mat,
+            frame_corners,
+            pc_builder.ids.flatten())
+
+        assert len(idx_2d) == len(frame_residuals)
+        outliers = set(frame_corners.ids[idx_2d[frame_residuals > max_inlier_reprojection_error]].flatten())
+
+        list_of_corners[frame] = filter_frame_corners_on_id(frame_corners, lambda id: id not in outliers)
+        n_corners_deleted += np.count_nonzero(frame_residuals > max_inlier_reprojection_error)
+
+    n_corners_filtered = sum(len(frame_corners.ids) for frame_corners in list_of_corners)
+    assert n_corners_initial - n_corners_filtered == n_corners_deleted
+
+    print("Filtered out {} corners out of {}, {} left".format(n_corners_deleted, n_corners_initial, n_corners_filtered))
 
     jacobian_begin = time.time()
 
@@ -162,13 +199,13 @@ def run_bundle_adjustment(
     # NB: PyTypeChecker seems to produce invalid result for the least_squares method
     # noinspection PyTypeChecker
     optimize_result = least_squares(
-        _calculate_residuals,
+        _calculate_residuals_from_params,
         _to_param_vector(view_mats, list(pc_builder.points)),
         jac_sparsity=jacobian_sparsity,
         verbose=2,  # Displays progress during iterations.
         x_scale='jac',  #
         ftol=1e-4,
-        max_nfev=500,
+        max_nfev=400,
         method='trf',  #
         loss='soft_l1',
         kwargs={

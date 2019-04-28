@@ -1,6 +1,7 @@
 __all__ = [
     'FrameCorners',
     'filter_frame_corners',
+    'filter_frame_corners_on_id',
     'CornerStorage',
     'StorageImpl',
     'StorageFilter',
@@ -13,7 +14,7 @@ __all__ = [
 
 import abc
 import pickle
-from typing import IO
+from typing import IO, Callable
 
 import click
 import cv2
@@ -79,6 +80,20 @@ def filter_frame_corners(frame_corners: FrameCorners,
     :return: filtered corners.
     """
     return FrameCorners(*[field[mask] for field in frame_corners])
+
+
+def filter_frame_corners_on_id(frame_corners: FrameCorners, id_predicate: Callable[[int], bool]) -> FrameCorners:
+    """
+    Filter frame corners using a predicate on corner id.
+
+    :param frame_corners: frame corners to filter.
+    :param id_predicate: boolean predicate, all elements with `id_predicate(id) == False` will be filtered out.
+    :return: filtered corners.
+    """
+    mask = np.vectorize(lambda id: id_predicate(id))(frame_corners.ids.flatten())
+    assert len(mask) == len(frame_corners.ids)
+    assert mask.dtype == np.bool
+    return filter_frame_corners(frame_corners, mask)
 
 
 def _to_int_tuple(point):

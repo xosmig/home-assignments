@@ -1,5 +1,4 @@
 #! /usr/bin/env python3
-from numpy.core._multiarray_umath import ndarray
 
 __all__ = [
     'track_and_calc_colors'
@@ -7,7 +6,7 @@ __all__ = [
 
 import sys
 from collections import namedtuple
-from typing import List, Tuple, Set, Callable, Optional
+from typing import List, Tuple, Set, Optional
 
 import numpy as np
 import sortednp as snp
@@ -18,7 +17,7 @@ from corners import CornerStorage, FrameCorners
 from data3d import CameraParameters, PointCloud, Pose
 import frameseq
 from _camtrack import *
-from _corners import filter_frame_corners
+from _corners import filter_frame_corners, filter_frame_corners_on_id
 
 from ba import run_bundle_adjustment
 
@@ -99,13 +98,6 @@ def _initialize_tracking(corner_storage: CornerStorage, intrinsic_mat: np.ndarra
     return _InitializationResult(frame1, frame2, points_3d, ids, pose, quality)
 
 
-def _filter_corners_on_id(frame_corners: FrameCorners, id_predicate: Callable[[int], bool]) -> FrameCorners:
-    mask = np.vectorize(lambda id: id_predicate(id))(frame_corners.ids.flatten())
-    assert len(mask) == len(frame_corners.ids)
-    assert mask.dtype == np.bool
-    return filter_frame_corners(frame_corners, mask)
-
-
 def _select_corners_by_indices(frame_corners: FrameCorners, indices: np.ndarray) -> FrameCorners:
     mask = np.repeat(False, len(frame_corners.ids))
     mask[indices] = True
@@ -178,7 +170,7 @@ def _track_camera(corner_storage: CornerStorage,
     outliers = set()
 
     def _remove_outliers(corners: FrameCorners) -> FrameCorners:
-        return _filter_corners_on_id(corners, lambda id: id not in outliers)
+        return filter_frame_corners_on_id(corners, lambda id: id not in outliers)
 
     list_of_inliers = [None] * len(corner_storage) # type: List[Optional[FrameCorners]]
 
