@@ -20,6 +20,8 @@ import frameseq
 from _camtrack import *
 from _corners import filter_frame_corners
 
+from ba import run_bundle_adjustment
+
 ############################################
 # Parameters
 _TRIANGULATION_PARAMETERS = TriangulationParameters(
@@ -110,22 +112,6 @@ def _select_corners_by_indices(frame_corners: FrameCorners, indices: np.ndarray)
     return filter_frame_corners(frame_corners, mask)
 
 
-def _rotation_matrix_to_vector(r_matrix: np.ndarray) -> np.ndarray:
-    res, _ = cv2.Rodrigues(r_matrix)
-    return res
-
-
-def _rotation_vector_to_matrix(r_vector: np.ndarray) -> np.ndarray:
-    res, _ = cv2.Rodrigues(r_vector)
-    return res
-
-
-def _components_to_view_mat3x4(r_matrix: np.ndarray, t_vector: np.ndarray) -> np.ndarray:
-    assert r_matrix.shape == (3, 3)
-    assert t_vector.shape == (3, 1)
-    return np.hstack((r_matrix, t_vector))
-
-
 def _cv2_to_numpy(t: Tuple) -> Tuple:
     return tuple(val.get() if isinstance(val, cv2.UMat) else val for val in t)
 
@@ -147,8 +133,7 @@ def _solve_pnp(
     if len(pnp_frame_corners.ids) < 6:
         return None, set()
 
-    prev_r_vector = _rotation_matrix_to_vector(prev_view_matrix[:, :3])
-    prev_t_vector = prev_view_matrix[:, 3]
+    prev_r_vector, prev_t_vector = view_mat3x4_to_rodrigues_and_translation(prev_view_matrix)
 
     ransac_success, r_vector, t_vector, inliers = _cv2_to_numpy(cv2.solvePnPRansac(
         pnp_3d_points,
@@ -164,7 +149,7 @@ def _solve_pnp(
     if not ransac_success:
         return None, set()
 
-    frame_view_matrix = _components_to_view_mat3x4(_rotation_vector_to_matrix(r_vector), t_vector)
+    frame_view_matrix = rodrigues_and_translation_to_view_mat3x4(r_vector, t_vector)
     new_outliers = np.delete(pnp_frame_corners.ids.flatten(), inliers.flatten())
 
     return frame_view_matrix, set(new_outliers)
@@ -192,17 +177,20 @@ def _track_camera(corner_storage: CornerStorage,
 
     outliers = set()
 
-    def _remove_outliers(corners):
+    def _remove_outliers(corners: FrameCorners) -> FrameCorners:
         return _filter_corners_on_id(corners, lambda id: id not in outliers)
+
+    list_of_inliers = [None] * len(corner_storage) # type: List[Optional[FrameCorners]]
 
     for frame in range(len(corner_storage)):
         if view_matrices[frame] is not None:
+            list_of_inliers[frame] = _remove_outliers(corner_storage[frame])
             continue
 
         print(("Processing frame {frame_number} / {total_frames} ("
                "PointCloudSize: {point_cloud_size}, "
                "OutliersCount: {outliers_count})")
-              .format(frame_number=frame,
+              .format(frame_number=frame + 1,
                       total_frames=len(corner_storage),
                       point_cloud_size=len(point_cloud_builder.ids),
                       outliers_count=len(outliers)))
@@ -221,6 +209,8 @@ def _track_camera(corner_storage: CornerStorage,
 
         view_matrices[frame] = frame_view_matrix
         outliers.update(new_outliers)
+
+        list_of_inliers[frame] = _remove_outliers(corner_storage[frame])
 
         for past_frame in range(frame):
             correspondences = build_correspondences(
@@ -242,6 +232,12 @@ def _track_camera(corner_storage: CornerStorage,
 
             point_cloud_builder.add_points(new_ids, new_points_3d)
 
+    view_matrices = run_bundle_adjustment(
+        intrinsic_mat,
+        list_of_inliers,
+        max_inlier_reprojection_error=5,
+        view_mats=view_matrices,
+        pc_builder=point_cloud_builder)
     return view_matrices, point_cloud_builder
 
 

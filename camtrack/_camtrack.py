@@ -12,6 +12,7 @@ __all__ = [
     'draw_residuals',
     'eye3x4',
     'project_points',
+    'view_mat3x4_to_rodrigues_and_translation',
     'rodrigues_and_translation_to_view_mat3x4',
     'to_opencv_camera_mat3x3',
     'triangulate_correspondences',
@@ -250,9 +251,27 @@ def check_baseline(view_mat_1: np.ndarray, view_mat_2: np.ndarray,
     return distance >= min_distance
 
 
+def _rotation_matrix_to_vector(r_matrix: np.ndarray) -> np.ndarray:
+    res, _ = cv2.Rodrigues(r_matrix)
+    return res
+
+
+def _rotation_vector_to_matrix(r_vector: np.ndarray) -> np.ndarray:
+    res, _ = cv2.Rodrigues(r_vector)
+    return res
+
+
+def view_mat3x4_to_rodrigues_and_translation(view_mat: np.ndarray) -> (np.ndarray, np.ndarray):
+    r_vec = _rotation_matrix_to_vector(view_mat[:, :3])
+    t_vec = view_mat[:, 3]
+    return r_vec, t_vec
+
+
 def rodrigues_and_translation_to_view_mat3x4(r_vec: np.ndarray,
                                              t_vec: np.ndarray) -> np.ndarray:
-    rot_mat, _ = cv2.Rodrigues(r_vec)
+    assert r_vec.shape == (3, 1)
+    assert t_vec.shape == (3, 1)
+    rot_mat = _rotation_vector_to_matrix(r_vec)
     view_mat = np.hstack((rot_mat, t_vec))
     return view_mat
 
@@ -303,6 +322,7 @@ class PointCloudBuilder:
     def update_points(self, ids: np.ndarray, points: np.ndarray) -> None:
         _, (idx_1, idx_2) = snp.intersect(self.ids.flatten(), ids.flatten(),
                                           indices=True)
+        assert points.shape == (len(points), 3)
         self._points[idx_1] = points[idx_2]
 
     def build_point_cloud(self) -> PointCloud:
