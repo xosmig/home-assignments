@@ -160,7 +160,7 @@ def _track_camera(corner_storage: CornerStorage,
     print("Initialized using frames {} and {}".format(init_res.frame1, init_res.frame2), file=sys.stderr)
     print("Number of 3d points: {}".format(len(init_res.points_3d)), file=sys.stderr)
 
-    view_matrices = list(None for _ in range(len(corner_storage)))
+    view_matrices = [None] * len(corner_storage) # type: List[Optional[np.ndarray]]
     view_matrices[init_res.frame1] = eye3x4()
     view_matrices[init_res.frame2] = pose_to_view_mat3x4(init_res.frame2_pose)
 
@@ -172,7 +172,7 @@ def _track_camera(corner_storage: CornerStorage,
     def _remove_outliers(corners: FrameCorners) -> FrameCorners:
         return filter_frame_corners_on_id(corners, lambda id: id not in outliers)
 
-    list_of_inliers = [None] * len(corner_storage) # type: List[Optional[FrameCorners]]
+    list_of_inliers = [None] * len(corner_storage)   # type: List[Optional[FrameCorners]]
 
     for frame in range(len(corner_storage)):
         if view_matrices[frame] is not None:
@@ -204,6 +204,17 @@ def _track_camera(corner_storage: CornerStorage,
 
         list_of_inliers[frame] = _remove_outliers(corner_storage[frame])
 
+        # if frame > 10 and np.random.random() < 0.15:
+        #     ba_start = max(0, frame - 20)
+        #     ba_end = frame + 1
+        #     view_matrices[ba_start:ba_end] = run_bundle_adjustment(
+        #         intrinsic_mat,
+        #         list_of_inliers[ba_start:ba_end],
+        #         max_inlier_reprojection_error=5,
+        #         view_mats=view_matrices[ba_start:ba_end],
+        #         pc_builder=point_cloud_builder,
+        #         verbose=1)
+
         for past_frame in range(frame):
             correspondences = build_correspondences(
                 _remove_outliers(corner_storage[past_frame]),
@@ -229,7 +240,8 @@ def _track_camera(corner_storage: CornerStorage,
         list_of_inliers,
         max_inlier_reprojection_error=5,
         view_mats=view_matrices,
-        pc_builder=point_cloud_builder)
+        pc_builder=point_cloud_builder,
+        verbose=2)
     return view_matrices, point_cloud_builder
 
 

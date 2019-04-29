@@ -67,14 +67,14 @@ def _calculate_frame_residuals(
     frame_residuals = compute_reprojection_errors(points_3d[idx_3d], frame_corners.points[idx_2d], proj_mat).flatten()
     return frame_residuals, idx_2d, idx_3d
 
-def _calculate_residuals_from_params(
+
+def _calculate_raw_residuals_from_params(
         params: np.ndarray,
         intrinsic_mat: np.ndarray,
         list_of_corners: List[FrameCorners],
         points_3d_ids: np.ndarray,
         n_cameras: int,
-        n_points: int,
-        max_inlier_reprojection_error: float) -> np.ndarray:
+        n_points: int) -> np.ndarray:
 
     view_mats, points_3d = _from_param_vector(n_cameras, n_points, params)
     assert len(view_mats) == len(list_of_corners)
@@ -90,7 +90,7 @@ def _calculate_residuals_from_params(
             intrinsic_mat,
             frame_corners,
             points_3d_ids)
-        frame_residuals = np.minimum(frame_residuals, max_inlier_reprojection_error)
+        frame_residuals = frame_residuals
         num_of_residuals += len(frame_residuals)
         all_residuals.append(frame_residuals)
 
@@ -98,6 +98,11 @@ def _calculate_residuals_from_params(
     assert all_residuals.shape == (num_of_residuals,)
 
     return all_residuals
+
+
+def _calculate_residuals_from_params(params, max_inlier_reprojection_error, **kwargs):
+    residuals = _calculate_raw_residuals_from_params(params, **kwargs)
+    return np.minimum(residuals, max_inlier_reprojection_error)
 
 
 def _bundle_adjustment_sparsity(
@@ -114,7 +119,7 @@ def _bundle_adjustment_sparsity(
 
     matrix = lil_matrix((row_count, col_count), dtype=int)
 
-    print("Jacobian shape: {}x{}, nonzero values: {}".format(row_count, col_count, row_count * 9))
+    print("BA: Jacobian shape: {}x{}, nonzero values: {}".format(row_count, col_count, row_count * 9))
 
     cur_row = 0
     for frame, frame_corners in enumerate(list_of_corners):
@@ -146,12 +151,48 @@ def _bundle_adjustment_sparsity(
     return matrix
 
 
+def _jacobian_sample_check(
+        params: np.ndarray,
+        jacobian_sparsity: lil_matrix,
+        intrinsic_mat: np.ndarray,
+        list_of_corners: List[FrameCorners],
+        points_3d_ids: np.ndarray,
+        n_cameras: int,
+        n_points: int):
+
+    n_checked_params = min(max(len(params) // 10, 5), 200, len(params))
+    checked_params = np.random.choice(len(params), size=n_checked_params, replace=False)
+    assert n_checked_params == len(checked_params)
+
+    kwargs = {
+        "intrinsic_mat": intrinsic_mat,
+        "list_of_corners": list_of_corners,
+        "points_3d_ids": points_3d_ids,
+        "n_cameras": n_cameras,
+        "n_points": n_points,
+    }
+
+    residuals_initial = _calculate_raw_residuals_from_params(params, **kwargs)
+
+    for param_idx in checked_params:
+        old_value = params[param_idx]
+        params[param_idx] = old_value * 2 * np.random.ranf() + 10
+        try:
+            residuals = _calculate_raw_residuals_from_params(params, **kwargs)
+            changed_residuals = np.arange(jacobian_sparsity.shape[0])[np.abs(residuals_initial - residuals) > 1e-5]
+            assert jacobian_sparsity[changed_residuals, param_idx].count_nonzero() == len(changed_residuals)
+        finally:
+            params[param_idx] = old_value
+
+
 def run_bundle_adjustment(
         intrinsic_mat: np.ndarray,
         list_of_corners: List[FrameCorners],
         max_inlier_reprojection_error: float,
         view_mats: List[np.ndarray],
-        pc_builder: PointCloudBuilder) -> List[np.ndarray]:
+        pc_builder: PointCloudBuilder,
+        verbose=1,
+        method="trf") -> List[np.ndarray]:
 
     assert len(list_of_corners) == len(view_mats)
     n_cameras = len(view_mats)
@@ -178,7 +219,15 @@ def run_bundle_adjustment(
     n_corners_filtered = sum(len(frame_corners.ids) for frame_corners in list_of_corners)
     assert n_corners_initial - n_corners_filtered == n_corners_deleted
 
-    print("Filtered out {} corners out of {}, {} left".format(n_corners_deleted, n_corners_initial, n_corners_filtered))
+    residuals_kwargs = {
+        "intrinsic_mat": intrinsic_mat,
+        "list_of_corners": list_of_corners,
+        "n_cameras": n_cameras,
+        "n_points": n_points,
+        "points_3d_ids": pc_builder.ids.flatten(),
+    }
+
+    print("BA: Filtered out {} corners out of {}, {} left".format(n_corners_deleted, n_corners_initial, n_corners_filtered))
 
     jacobian_begin = time.time()
 
@@ -190,9 +239,20 @@ def run_bundle_adjustment(
 
     jacobian_end = time.time()
 
-    print("Evaluated jacobian sparsity in {0:.0f} seconds".format(jacobian_end - jacobian_begin))
+    print("BA: Evaluated jacobian sparsity in {0:.0f} seconds".format(jacobian_end - jacobian_begin))
 
-    print("Running optimization...")
+    jacobian_check_begin = time.time()
+
+    _jacobian_sample_check(
+        _to_param_vector(view_mats, list(pc_builder.points)),
+        jacobian_sparsity,
+        **residuals_kwargs)
+
+    jacobian_check_end = time.time()
+
+    print("BA: Jacobian check took {0:.0f} seconds".format(jacobian_check_end - jacobian_check_begin))
+
+    print("BA: Running optimization...")
 
     ba_begin = time.time()
 
@@ -201,25 +261,21 @@ def run_bundle_adjustment(
     optimize_result = least_squares(
         _calculate_residuals_from_params,
         _to_param_vector(view_mats, list(pc_builder.points)),
-        jac_sparsity=jacobian_sparsity,
-        verbose=2,  # Displays progress during iterations.
-        x_scale='jac',  #
+        jac_sparsity=jacobian_sparsity if method != "lm" else None,
+        verbose=verbose,
+        x_scale='jac',
         ftol=1e-4,
-        max_nfev=400,
-        method='trf',  #
-        loss='soft_l1',
+        max_nfev=400 if method != "lm" else 100,
+        method=method,
+        loss='linear',
         kwargs={
-            "intrinsic_mat": intrinsic_mat,
-            "list_of_corners": list_of_corners,
-            "n_cameras": n_cameras,
-            "n_points": n_points,
-            "points_3d_ids": pc_builder.ids.flatten(),
+            **residuals_kwargs,
             "max_inlier_reprojection_error": max_inlier_reprojection_error,
         })  # type: OptimizeResult
 
     ba_end = time.time()
 
-    print("Optimization took {0:.0f} seconds".format(ba_end - ba_begin))
+    print("BA: Optimization took {0:.0f} seconds".format(ba_end - ba_begin))
 
     new_view_mats, new_points_3d = _from_param_vector(n_cameras, n_points, optimize_result.x)
     pc_builder.update_points(pc_builder.ids, np.vstack(new_points_3d))
