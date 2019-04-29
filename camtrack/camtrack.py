@@ -240,7 +240,10 @@ def _try_track_camera(
         # x_scale="custom",
         # method="dogbox",
         # loss="cauchy",
-        # enable_bounds=True
+        # enable_bounds=True,
+        # bound_error=True,
+        # filter_corners=True,
+        # max_nfev=400,
     )
     return view_matrices, point_cloud_builder
 

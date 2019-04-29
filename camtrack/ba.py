@@ -196,32 +196,39 @@ def run_bundle_adjustment(
         method="trf",
         loss="linear",
         x_scale="jac",
-        enable_bounds=False) -> List[np.ndarray]:
+        enable_bounds=False,
+        bound_error=False,
+        filter_corners=False,
+        max_nfev=100) -> List[np.ndarray]:
 
     assert len(list_of_corners) == len(view_mats)
     n_cameras = len(view_mats)
     n_points = len(pc_builder.ids)
 
-    n_corners_initial = sum(len(frame_corners.ids) for frame_corners in list_of_corners)
-    list_of_corners = deepcopy(list_of_corners)
+    if filter_corners:
+        n_corners_initial = sum(len(frame_corners.ids) for frame_corners in list_of_corners)
+        list_of_corners = deepcopy(list_of_corners)
 
-    n_corners_deleted = 0
-    for frame, (view_mat, frame_corners) in enumerate(zip(view_mats, list_of_corners)):
-        frame_residuals, idx_2d, _ = _calculate_frame_residuals(
-            view_mat,
-            pc_builder.points,
-            intrinsic_mat,
-            frame_corners,
-            pc_builder.ids.flatten())
+        n_corners_deleted = 0
+        for frame, (view_mat, frame_corners) in enumerate(zip(view_mats, list_of_corners)):
+            frame_residuals, idx_2d, _ = _calculate_frame_residuals(
+                view_mat,
+                pc_builder.points,
+                intrinsic_mat,
+                frame_corners,
+                pc_builder.ids.flatten())
 
-        assert len(idx_2d) == len(frame_residuals)
-        outliers = set(frame_corners.ids[idx_2d[frame_residuals > max_inlier_reprojection_error]].flatten())
+            assert len(idx_2d) == len(frame_residuals)
+            outliers = set(frame_corners.ids[idx_2d[frame_residuals > max_inlier_reprojection_error]].flatten())
 
-        list_of_corners[frame] = filter_frame_corners_on_id(frame_corners, lambda id: id not in outliers)
-        n_corners_deleted += np.count_nonzero(frame_residuals > max_inlier_reprojection_error)
+            list_of_corners[frame] = filter_frame_corners_on_id(frame_corners, lambda id: id not in outliers)
+            n_corners_deleted += np.count_nonzero(frame_residuals > max_inlier_reprojection_error)
 
-    n_corners_filtered = sum(len(frame_corners.ids) for frame_corners in list_of_corners)
-    assert n_corners_initial - n_corners_filtered == n_corners_deleted
+        n_corners_filtered = sum(len(frame_corners.ids) for frame_corners in list_of_corners)
+        assert n_corners_initial - n_corners_filtered == n_corners_deleted
+
+        print("BA: Filtered out {} corners out of {}, {} left"
+              .format(n_corners_deleted, n_corners_initial, n_corners_filtered))
 
     residuals_kwargs = {
         "intrinsic_mat": intrinsic_mat,
@@ -230,8 +237,6 @@ def run_bundle_adjustment(
         "n_points": n_points,
         "points_3d_ids": pc_builder.ids.flatten(),
     }
-
-    print("BA: Filtered out {} corners out of {}, {} left".format(n_corners_deleted, n_corners_initial, n_corners_filtered))
 
     jacobian_begin = time.time()
 
@@ -285,13 +290,13 @@ def run_bundle_adjustment(
         x_scale=x_scale,
         bounds=(lower_bound, upper_bound),
         ftol=1e-4 if loss == "linear" else 1e-8,
-        max_nfev=400,
+        max_nfev=max_nfev,
         method=method,
         loss=loss,
         kwargs={
             **residuals_kwargs,
             "max_inlier_reprojection_error": max_inlier_reprojection_error,
-            "bound_error": loss == "linear",
+            "bound_error": loss == "linear" and bound_error,
         })  # type: OptimizeResult
 
     ba_end = time.time()
