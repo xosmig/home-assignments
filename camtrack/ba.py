@@ -100,10 +100,11 @@ def _calculate_raw_residuals_from_params(
     return all_residuals
 
 
-def _calculate_residuals_from_params(params, max_inlier_reprojection_error, **kwargs):
+def _calculate_residuals_from_params(params, max_inlier_reprojection_error, bound_error, **kwargs):
     residuals = _calculate_raw_residuals_from_params(params, **kwargs)
-    return np.minimum(residuals, max_inlier_reprojection_error)
-
+    if bound_error:
+        residuals = np.minimum(residuals, max_inlier_reprojection_error)
+    return residuals
 
 def _bundle_adjustment_sparsity(
         list_of_corners: List[FrameCorners],
@@ -192,7 +193,10 @@ def run_bundle_adjustment(
         view_mats: List[np.ndarray],
         pc_builder: PointCloudBuilder,
         verbose=1,
-        method="trf") -> List[np.ndarray]:
+        method="trf",
+        loss="linear",
+        x_scale="jac",
+        enable_bounds=False) -> List[np.ndarray]:
 
     assert len(list_of_corners) == len(view_mats)
     n_cameras = len(view_mats)
@@ -256,21 +260,38 @@ def run_bundle_adjustment(
 
     ba_begin = time.time()
 
+    start_params = _to_param_vector(view_mats, list(pc_builder.points))
+    if x_scale == "custom":
+        x_scale = np.array(([0.3] * 3 + [1.] * 3) * n_cameras + [1.] * 3 * n_points)
+        assert len(x_scale) == len(start_params)
+
+    lower_bound = -np.inf
+    upper_bound = np.inf
+    if enable_bounds:
+        lower_bound = np.array(([-np.inf] * 3 + [-max_inlier_reprojection_error] * 3) * n_cameras
+                               + [-max_inlier_reprojection_error] * 3 * n_points) + start_params
+        assert np.all(lower_bound < start_params)
+        upper_bound = np.array(([np.inf] * 3 + [max_inlier_reprojection_error] * 3) * n_cameras
+                               + [max_inlier_reprojection_error] * 3 * n_points) + start_params
+        assert np.all(upper_bound > start_params)
+
     # NB: PyTypeChecker seems to produce invalid result for the least_squares method
     # noinspection PyTypeChecker
     optimize_result = least_squares(
         _calculate_residuals_from_params,
-        _to_param_vector(view_mats, list(pc_builder.points)),
-        jac_sparsity=jacobian_sparsity if method != "lm" else None,
+        start_params,
+        jac_sparsity=jacobian_sparsity,
         verbose=verbose,
-        x_scale='jac',
-        ftol=1e-4,
-        max_nfev=400 if method != "lm" else 100,
+        x_scale=x_scale,
+        bounds=(lower_bound, upper_bound),
+        ftol=1e-4 if loss == "linear" else 1e-8,
+        max_nfev=400,
         method=method,
-        loss='linear',
+        loss=loss,
         kwargs={
             **residuals_kwargs,
             "max_inlier_reprojection_error": max_inlier_reprojection_error,
+            "bound_error": loss == "linear",
         })  # type: OptimizeResult
 
     ba_end = time.time()
